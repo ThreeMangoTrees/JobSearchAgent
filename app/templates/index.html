@@ -120,11 +120,6 @@
         font-size: 0.9rem;
       }
 
-      .stored-files {
-        margin-top: 18px;
-        font-size: 0.95rem;
-      }
-
       @media (max-width: 700px) {
         .shell {
           width: min(100% - 20px, 1080px);
@@ -159,6 +154,16 @@
           </label>
 
           <label>
+            Preferred location filter (optional)
+            <input
+              type="text"
+              name="preferred_location"
+              value="{{ preferred_location or '' }}"
+              placeholder="San Francisco, CA or Remote"
+            />
+          </label>
+
+          <label>
             Resume
             <input type="file" name="resume" accept=".txt,.pdf,.docx" required />
           </label>
@@ -176,17 +181,16 @@
         </form>
       </section>
 
-      {% if results %}
+      {% if results and results.matches %}
       <section class="results">
         <h2>Matched Job IDs</h2>
-
-        {% if results.matches %}
         <div class="job-grid">
           {% for match in results.matches %}
           <article class="job-card">
             <div class="job-meta">
               <span class="pill">Job ID: {{ match.job_id }}</span>
               <span class="pill">{{ match.title }}</span>
+              <span class="pill">Location: {{ match.location }}</span>
             </div>
             <p><strong>Company:</strong> {{ match.company_url }}</p>
             <p><strong>Source:</strong> <a href="{{ match.source_url }}" target="_blank">{{ match.source_url }}</a></p>
@@ -194,24 +198,10 @@
           </article>
           {% endfor %}
         </div>
-        {% else %}
-        <p>No matching job IDs were found in the scraped data.</p>
-        {% endif %}
 
         {% if results.notes %}
         <h3>Notes</h3>
         <p>{{ results.notes }}</p>
-        {% endif %}
-
-        {% if stored_files %}
-        <div class="stored-files">
-          <h3>Local scraped files</h3>
-          <ul>
-            {% for file in stored_files %}
-            <li>{{ file }}</li>
-            {% endfor %}
-          </ul>
-        </div>
         {% endif %}
       </section>
       {% endif %}

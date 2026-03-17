@@ -7,8 +7,7 @@ from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 APP_DIR = BASE_DIR / "app"
-DATA_DIR = APP_DIR / "data"
-SCRAPED_DATA_DIR = DATA_DIR / "scraped_data"
+SCRAPED_DATA_DIR = BASE_DIR / "job_sites_data"
 TEMPLATES_DIR = APP_DIR / "templates"
 STATIC_DIR = APP_DIR / "static"
 

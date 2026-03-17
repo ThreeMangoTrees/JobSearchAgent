@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 from collections import deque
 from dataclasses import dataclass
@@ -7,6 +8,8 @@ from urllib.parse import urljoin, urlparse
 
 import requests
 from bs4 import BeautifulSoup
+
+logger = logging.getLogger(__name__)
 
 CAREER_KEYWORDS = (
     "career",
@@ -53,13 +56,19 @@ class CareerSiteScraper:
 
     def scrape_company(self, company_url: str) -> list[ScrapedPage]:
         normalized_url = self._normalize_url(company_url)
+        logger.info("Normalized company URL %s -> %s", company_url, normalized_url)
         discovered = self._discover_career_urls(normalized_url)
+        logger.info("Discovered %s candidate career page(s) for %s", len(discovered), normalized_url)
         pages: list[ScrapedPage] = []
 
         for url in discovered[: self.max_pages]:
+            logger.info("Scraping candidate page %s", url)
             page = self._scrape_page(url)
             if page and len(page.text) > 200:
                 pages.append(page)
+                logger.info("Accepted scraped page %s with %s characters", url, len(page.text))
+            else:
+                logger.info("Skipped page %s because content was missing or too short", url)
 
         return pages
 
@@ -91,13 +100,16 @@ class CareerSiteScraper:
             if current in seen:
                 continue
             seen.add(current)
+            logger.info("Checking potential career URL %s", current)
 
             response = self._get(current)
             if not response:
+                logger.info("No usable HTML response for %s", current)
                 continue
 
             if self._looks_like_career_url(current) or self._looks_like_career_page(response.text):
                 discovered.append(current)
+                logger.info("Marked %s as a career-related page", current)
 
             for link in self._extract_candidate_links(current, response.text):
                 if link not in seen:
@@ -111,6 +123,7 @@ class CareerSiteScraper:
     def _scrape_page(self, url: str) -> ScrapedPage | None:
         response = self._get(url)
         if not response:
+            logger.info("Skipping page scrape for %s because fetch failed", url)
             return None
 
         soup = BeautifulSoup(response.text, "html.parser")
@@ -124,6 +137,7 @@ class CareerSiteScraper:
             if line.strip()
         )
         text = re.sub(r"\n{3,}", "\n\n", text)
+        logger.info("Extracted %s characters of text from %s", len(text), url)
         return ScrapedPage(url=url, title=title, text=text)
 
     def _extract_candidate_links(self, base_url: str, html: str) -> list[str]:
@@ -169,10 +183,13 @@ class CareerSiteScraper:
 
     def _get(self, url: str) -> requests.Response | None:
         try:
+            logger.info("Fetching URL %s", url)
             response = self.session.get(url, timeout=self.timeout)
             response.raise_for_status()
             if "text/html" not in response.headers.get("Content-Type", ""):
+                logger.info("Ignoring non-HTML response from %s", url)
                 return None
             return response
-        except requests.RequestException:
+        except requests.RequestException as exc:
+            logger.warning("Request failed for %s: %s", url, exc)
             return None

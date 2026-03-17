@@ -2,4 +2,5 @@
 .venv/
 __pycache__/
 *.py[cod]
-app/data/scraped_data/
+job_sites_data/
+reset_venv_and_start.py
