@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Job Search Agent</title>
+    <style>
+      :root {
+        --bg: #f5efe5;
+        --panel: rgba(255, 250, 244, 0.92);
+        --ink: #1f2a1f;
+        --accent: #b5522d;
+        --accent-soft: #f0c7ab;
+        --border: rgba(31, 42, 31, 0.12);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: Georgia, "Times New Roman", serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(181, 82, 45, 0.22), transparent 30%),
+          radial-gradient(circle at bottom right, rgba(35, 92, 74, 0.18), transparent 28%),
+          linear-gradient(135deg, #f9f3e8, #e8eee6);
+      }
+
+      .shell {
+        width: min(1080px, calc(100% - 32px));
+        margin: 32px auto;
+        display: grid;
+        gap: 24px;
+      }
+
+      .hero,
+      .results {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 24px;
+        padding: 24px;
+        box-shadow: 0 24px 80px rgba(35, 42, 31, 0.08);
+      }
+
+      h1,
+      h2,
+      h3 {
+        margin-top: 0;
+      }
+
+      form {
+        display: grid;
+        gap: 16px;
+      }
+
+      label {
+        font-weight: 700;
+        display: grid;
+        gap: 8px;
+      }
+
+      textarea,
+      input,
+      button {
+        font: inherit;
+      }
+
+      textarea,
+      input[type="file"] {
+        width: 100%;
+        border-radius: 14px;
+        border: 1px solid var(--border);
+        padding: 14px;
+        background: #fffdfa;
+      }
+
+      button {
+        border: 0;
+        border-radius: 999px;
+        padding: 14px 20px;
+        width: fit-content;
+        background: linear-gradient(135deg, var(--accent), #d97b54);
+        color: white;
+        cursor: pointer;
+      }
+
+      .error {
+        color: #8a1c12;
+        background: #ffe0dc;
+        border-radius: 14px;
+        padding: 12px 14px;
+      }
+
+      .job-grid {
+        display: grid;
+        gap: 16px;
+      }
+
+      .job-card {
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        padding: 18px;
+        background: rgba(255, 255, 255, 0.75);
+      }
+
+      .job-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 10px;
+      }
+
+      .pill {
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: var(--accent-soft);
+        font-size: 0.9rem;
+      }
+
+      .stored-files {
+        margin-top: 18px;
+        font-size: 0.95rem;
+      }
+
+      @media (max-width: 700px) {
+        .shell {
+          width: min(100% - 20px, 1080px);
+          margin: 20px auto;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <h1>AI Job Search Agent</h1>
+        <p>
+          Upload a resume and cover letter, add one company website per line, and
+          the backend will scrape career pages, save raw text locally, and return
+          job IDs that best match the resume.
+        </p>
+
+        {% if error %}
+        <div class="error">{{ error }}</div>
+        {% endif %}
+
+        <form action="/analyze" method="post" enctype="multipart/form-data">
+          <label>
+            Company websites
+            <textarea
+              name="company_websites"
+              rows="7"
+              placeholder="https://company-one.com&#10;https://company-two.com"
+              required
+            ></textarea>
+          </label>
+
+          <label>
+            Resume
+            <input type="file" name="resume" accept=".txt,.pdf,.docx" required />
+          </label>
+
+          <label>
+            Cover letter (optional)
+            <input
+              type="file"
+              name="cover_letter"
+              accept=".txt,.pdf,.docx"
+            />
+          </label>
+
+          <button type="submit">Find Matching Jobs</button>
+        </form>
+      </section>
+
+      {% if results %}
+      <section class="results">
+        <h2>Matched Job IDs</h2>
+
+        {% if results.matches %}
+        <div class="job-grid">
+          {% for match in results.matches %}
+          <article class="job-card">
+            <div class="job-meta">
+              <span class="pill">Job ID: {{ match.job_id }}</span>
+              <span class="pill">{{ match.title }}</span>
+            </div>
+            <p><strong>Company:</strong> {{ match.company_url }}</p>
+            <p><strong>Source:</strong> <a href="{{ match.source_url }}" target="_blank">{{ match.source_url }}</a></p>
+            <p>{{ match.reason }}</p>
+          </article>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p>No matching job IDs were found in the scraped data.</p>
+        {% endif %}
+
+        {% if results.notes %}
+        <h3>Notes</h3>
+        <p>{{ results.notes }}</p>
+        {% endif %}
+
+        {% if stored_files %}
+        <div class="stored-files">
+          <h3>Local scraped files</h3>
+          <ul>
+            {% for file in stored_files %}
+            <li>{{ file }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+      </section>
+      {% endif %}
+    </main>
+  </body>
+</html>
