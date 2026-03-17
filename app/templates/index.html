@@ -181,9 +181,10 @@
         </form>
       </section>
 
-      {% if results and results.matches %}
+      {% if results %}
       <section class="results">
         <h2>Matched Job IDs</h2>
+        {% if results.matches %}
         <div class="job-grid">
           {% for match in results.matches %}
           <article class="job-card">
@@ -198,6 +199,9 @@
           </article>
           {% endfor %}
         </div>
+        {% else %}
+        <p>No jobs matched the search.</p>
+        {% endif %}
 
         {% if results.notes %}
         <h3>Notes</h3>
