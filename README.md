@@ -19,6 +19,17 @@ cp .env.example .env
 
 Set `OPENAI_API_KEY` in `.env` or your shell environment.
 
+Admin login now uses Google OAuth. Set these values in `.env`:
+
+```env
+ADMIN_EMAIL=your-authorized-google-account@example.com
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+GOOGLE_REDIRECT_URI=http://127.0.0.1:8000/admin/auth/google/callback
+```
+
+In Google Cloud Console, create an OAuth 2.0 Web application client and register the exact same redirect URI.
+
 ## Run
 
 ```bash

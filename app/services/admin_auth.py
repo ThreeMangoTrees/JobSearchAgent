@@ -23,6 +23,10 @@ from app.config import (
 logger = logging.getLogger(__name__)
 
 
+class SMTPConfigurationError(ValueError):
+    """Raised when SMTP credentials are invalid or unsupported."""
+
+
 @dataclass
 class OTPRecord:
     code: str
@@ -71,17 +75,36 @@ class AdminOTPService:
 
         context = ssl.create_default_context(cafile=certifi.where())
         if SMTP_USE_TLS:
-            with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=20) as server:
-                server.starttls(context=context)
+            try:
+                with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=20) as server:
+                    server.starttls(context=context)
+                    if SMTP_USERNAME:
+                        server.login(SMTP_USERNAME, SMTP_PASSWORD)
+                    server.send_message(message)
+            except smtplib.SMTPAuthenticationError as exc:
+                raise SMTPConfigurationError(_smtp_auth_error_message()) from exc
+            return
+
+        try:
+            with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=20, context=context) as server:
                 if SMTP_USERNAME:
                     server.login(SMTP_USERNAME, SMTP_PASSWORD)
                 server.send_message(message)
-            return
+        except smtplib.SMTPAuthenticationError as exc:
+            raise SMTPConfigurationError(_smtp_auth_error_message()) from exc
 
-        with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=20, context=context) as server:
-            if SMTP_USERNAME:
-                server.login(SMTP_USERNAME, SMTP_PASSWORD)
-            server.send_message(message)
+
+def _smtp_auth_error_message() -> str:
+    if SMTP_HOST.strip().lower() == "smtp.gmail.com":
+        return (
+            "Gmail rejected the SMTP login. Use a Gmail App Password in SMTP_PASSWORD "
+            "(not your normal Gmail password), or switch this app to an SMTP provider "
+            "that supports the configured authentication method."
+        )
+    return (
+        "SMTP authentication failed. Check SMTP_USERNAME, SMTP_PASSWORD, and whether "
+        "your mail provider requires an app password or OAuth instead of a normal password."
+    )
 
 
 otp_service = AdminOTPService()

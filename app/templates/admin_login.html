@@ -34,7 +34,11 @@
         border-radius: 14px;
         border: 1px solid rgba(31, 42, 31, 0.12);
       }
-      button {
+      .cta {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
         width: fit-content;
         border: 0;
         border-radius: 999px;
@@ -42,6 +46,21 @@
         color: #fff;
         background: linear-gradient(135deg, #b5522d, #d97b54);
         cursor: pointer;
+        text-decoration: none;
+        font: inherit;
+      }
+      .button-muted {
+        background: #d7ddd2;
+        color: #41503f;
+        cursor: not-allowed;
+        pointer-events: none;
+      }
+      .meta {
+        margin: 16px 0 20px;
+        padding: 14px;
+        border-radius: 14px;
+        background: rgba(31, 42, 31, 0.05);
+        line-height: 1.5;
       }
       .error {
         color: #8a1c12;
@@ -60,16 +79,18 @@
   <body>
     <section class="panel">
       <h1>Admin Login</h1>
-      <p>Sign in with the authorized admin email. An OTP will be sent to that inbox.</p>
+      <p>Sign in with the authorized Google account to access the admin dashboard.</p>
       {% if error %}<div class="error">{{ error }}</div>{% endif %}
       {% if message %}<div class="message">{{ message }}</div>{% endif %}
-      <form action="/admin/login" method="post">
-        <label>
-          Admin email
-          <input type="email" name="email" value="{{ default_email or '' }}" required readonly />
-        </label>
-        <button type="submit">Send OTP</button>
-      </form>
+      <div class="meta">
+        Authorized admin account: <strong>{{ admin_email or "Not configured" }}</strong><br />
+        Google OAuth redirect URI must match the value registered in your Google Cloud OAuth client.
+      </div>
+      {% if google_oauth_enabled %}
+      <a href="/admin/login/google" class="cta">Continue with Google</a>
+      {% else %}
+      <span class="cta button-muted">Google login not configured</span>
+      {% endif %}
     </section>
   </body>
 </html>

@@ -4,15 +4,23 @@ import logging
 import tempfile
 from pathlib import Path
 
+from authlib.integrations.starlette_client import OAuth, OAuthError
 from fastapi import FastAPI, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from app.config import ADMIN_EMAIL, SESSION_SECRET, STATIC_DIR, TEMPLATES_DIR
+from app.config import (
+    ADMIN_EMAIL,
+    GOOGLE_CLIENT_ID,
+    GOOGLE_CLIENT_SECRET,
+    GOOGLE_REDIRECT_URI,
+    SESSION_SECRET,
+    STATIC_DIR,
+    TEMPLATES_DIR,
+)
 from app.models import MatchResult
-from app.services.admin_auth import otp_service
 from app.services.company_registry import (
     company_slug_from_url,
     list_company_configs,
@@ -34,6 +42,16 @@ app = FastAPI(title="Job Search Agent", version="1.0.0")
 app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+oauth = OAuth()
+
+if GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET:
+    oauth.register(
+        name="google",
+        client_id=GOOGLE_CLIENT_ID,
+        client_secret=GOOGLE_CLIENT_SECRET,
+        server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
+        client_kwargs={"scope": "openid email profile"},
+    )
 
 TARGET_ROLE_PATTERNS = (
     "senior software engineer",
@@ -150,56 +168,105 @@ def admin_login(request: Request) -> HTMLResponse:
             "request": request,
             "error": None,
             "message": None,
-            "default_email": ADMIN_EMAIL,
+            "admin_email": ADMIN_EMAIL,
+            "google_oauth_enabled": bool(GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET),
         },
     )
 
 
-@app.post("/admin/login", response_class=HTMLResponse)
-async def admin_login_request_otp(request: Request, email: str = Form(...)) -> HTMLResponse:
-    try:
-        otp_service.issue_code(email)
-    except Exception as exc:
+@app.get("/admin/login/google")
+async def admin_login_google(request: Request) -> RedirectResponse | HTMLResponse:
+    google = oauth.create_client("google")
+    if google is None:
         return templates.TemplateResponse(
             "admin_login.html",
             {
                 "request": request,
-                "error": str(exc),
+                "error": (
+                    "Google login is not configured. Set GOOGLE_CLIENT_ID, "
+                    "GOOGLE_CLIENT_SECRET, and GOOGLE_REDIRECT_URI in .env."
+                ),
                 "message": None,
-                "default_email": email,
+                "admin_email": ADMIN_EMAIL,
+                "google_oauth_enabled": False,
             },
             status_code=400,
         )
 
-    request.session["pending_admin_email"] = email.strip().lower()
-    return templates.TemplateResponse(
-        "admin_verify.html",
-        {
-            "request": request,
-            "email": email.strip().lower(),
-            "error": None,
-            "message": "OTP sent to your email address.",
-        },
-    )
+    redirect_uri = GOOGLE_REDIRECT_URI.strip() or str(request.url_for("admin_google_callback"))
+    return await google.authorize_redirect(request, redirect_uri)
 
 
-@app.post("/admin/verify", response_class=HTMLResponse)
-async def admin_verify(request: Request, otp_code: str = Form(...)) -> HTMLResponse:
-    email = request.session.get("pending_admin_email", "")
-    if not email or not otp_service.verify_code(email, otp_code):
+@app.get("/admin/auth/google/callback", response_class=HTMLResponse, name="admin_google_callback")
+async def admin_google_callback(request: Request) -> RedirectResponse | HTMLResponse:
+    google = oauth.create_client("google")
+    if google is None:
         return templates.TemplateResponse(
-            "admin_verify.html",
+            "admin_login.html",
             {
                 "request": request,
-                "email": email,
-                "error": "Invalid or expired OTP.",
+                "error": (
+                    "Google login is not configured. Set GOOGLE_CLIENT_ID, "
+                    "GOOGLE_CLIENT_SECRET, and GOOGLE_REDIRECT_URI in .env."
+                ),
                 "message": None,
+                "admin_email": ADMIN_EMAIL,
+                "google_oauth_enabled": False,
             },
             status_code=400,
+        )
+
+    try:
+        token = await google.authorize_access_token(request)
+    except OAuthError as exc:
+        logger.exception("Google OAuth callback failed: %s", exc)
+        return templates.TemplateResponse(
+            "admin_login.html",
+            {
+                "request": request,
+                "error": f"Google sign-in failed: {exc.error or 'authentication error'}",
+                "message": None,
+                "admin_email": ADMIN_EMAIL,
+                "google_oauth_enabled": True,
+            },
+            status_code=400,
+        )
+
+    userinfo = token.get("userinfo") or {}
+    email = str(userinfo.get("email", "")).strip().lower()
+    email_verified = bool(userinfo.get("email_verified"))
+    expected_email = ADMIN_EMAIL.strip().lower()
+
+    if not email or not email_verified:
+        request.session.clear()
+        return templates.TemplateResponse(
+            "admin_login.html",
+            {
+                "request": request,
+                "error": "Google did not return a verified email address for this account.",
+                "message": None,
+                "admin_email": ADMIN_EMAIL,
+                "google_oauth_enabled": True,
+            },
+            status_code=403,
+        )
+
+    if expected_email and email != expected_email:
+        request.session.clear()
+        return templates.TemplateResponse(
+            "admin_login.html",
+            {
+                "request": request,
+                "error": f"{email} is not authorized for admin access.",
+                "message": None,
+                "admin_email": ADMIN_EMAIL,
+                "google_oauth_enabled": True,
+            },
+            status_code=403,
         )
 
     request.session["admin_email"] = email
-    request.session.pop("pending_admin_email", None)
+    request.session["admin_name"] = str(userinfo.get("name", "")).strip()
     return RedirectResponse(url="/admin", status_code=303)
 
 
