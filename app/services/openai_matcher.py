@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 
 from app.config import OPENAI_API_KEY, OPENAI_MODEL
-from app.models import MatchResult
+from app.models import ExtractedJob, MatchResult
 
 logger = logging.getLogger(__name__)
 
@@ -114,6 +114,71 @@ class OpenAIJobMatcher:
         parsed = MatchResult.model_validate(json.loads(response.output_text))
         logger.info("Parsed %s match(es) from OpenAI response for %s", len(parsed.matches), company_url)
         return parsed
+
+    def extract_jobs(
+        self,
+        company_url: str,
+        scraped_text: str,
+        extraction_instructions: str,
+    ) -> list[ExtractedJob]:
+        logger.info(
+            "Submitting OpenAI extraction request for %s with scraped text length %s",
+            company_url,
+            len(scraped_text),
+        )
+        response = self.client.responses.create(
+            model=OPENAI_MODEL,
+            input=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You extract jobs from scraped careers-page text. Follow the provided instructions "
+                        "carefully. Return only jobs that actually appear in the scraped data. For each job, "
+                        "return exactly three fields: job_id, location, and role_name. If a job ID is not "
+                        "explicitly present, infer a stable identifier from the source URL or job title."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": (
+                        f"Company website: {company_url}\n\n"
+                        f"Extraction instructions:\n{extraction_instructions}\n\n"
+                        f"Scraped careers data:\n{scraped_text}"
+                    ),
+                },
+            ],
+            text={
+                "format": {
+                    "type": "json_schema",
+                    "name": "job_extraction_result",
+                    "strict": True,
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "jobs": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "job_id": {"type": "string"},
+                                        "location": {"type": "string"},
+                                        "role_name": {"type": "string"},
+                                    },
+                                    "required": ["job_id", "location", "role_name"],
+                                    "additionalProperties": False,
+                                },
+                            }
+                        },
+                        "required": ["jobs"],
+                        "additionalProperties": False,
+                    },
+                }
+            },
+        )
+        payload = json.loads(response.output_text)
+        jobs = [ExtractedJob.model_validate(item) for item in payload["jobs"]]
+        logger.info("Parsed %s extracted job(s) for %s", len(jobs), company_url)
+        return jobs
 
 
 def extract_text_from_upload(file_path: Path) -> str:

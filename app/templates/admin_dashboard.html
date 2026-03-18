@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin Dashboard</title>
+    <style>
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: Georgia, "Times New Roman", serif;
+        color: #1f2a1f;
+        background:
+          radial-gradient(circle at top left, rgba(181, 82, 45, 0.22), transparent 30%),
+          radial-gradient(circle at bottom right, rgba(35, 92, 74, 0.18), transparent 28%),
+          linear-gradient(135deg, #f9f3e8, #e8eee6);
+      }
+      .shell {
+        width: min(1080px, calc(100% - 32px));
+        margin: 32px auto;
+        display: grid;
+        gap: 24px;
+      }
+      .panel {
+        background: rgba(255, 250, 244, 0.94);
+        border: 1px solid rgba(31, 42, 31, 0.12);
+        border-radius: 24px;
+        padding: 24px;
+      }
+      form, label {
+        display: grid;
+        gap: 12px;
+      }
+      input, textarea, button {
+        font: inherit;
+      }
+      input, textarea {
+        width: 100%;
+        padding: 14px;
+        border-radius: 14px;
+        border: 1px solid rgba(31, 42, 31, 0.12);
+        background: #fffdfa;
+      }
+      textarea {
+        min-height: 180px;
+      }
+      button {
+        width: fit-content;
+        border: 0;
+        border-radius: 999px;
+        padding: 14px 20px;
+        color: #fff;
+        background: linear-gradient(135deg, #b5522d, #d97b54);
+        cursor: pointer;
+      }
+      .error {
+        color: #8a1c12;
+        background: #ffe0dc;
+        border-radius: 14px;
+        padding: 12px 14px;
+      }
+      .message {
+        color: #1f5135;
+        background: #e2f3e4;
+        border-radius: 14px;
+        padding: 12px 14px;
+      }
+      .company-list {
+        display: grid;
+        gap: 16px;
+      }
+      .company-card {
+        border: 1px solid rgba(31, 42, 31, 0.12);
+        border-radius: 18px;
+        padding: 18px;
+        background: rgba(255, 255, 255, 0.75);
+      }
+      .actions {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .inline {
+        display: inline-block;
+      }
+      .mono {
+        font-family: "Courier New", monospace;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <section class="panel">
+        <div class="actions">
+          <h1 style="margin: 0;">Admin Dashboard</h1>
+          <form class="inline" action="/admin/sync-now" method="post">
+            <button type="submit">Run Sync Now</button>
+          </form>
+          <form class="inline" action="/admin/logout" method="post">
+            <button type="submit">Logout</button>
+          </form>
+        </div>
+        <p>
+          Registered companies are stored as JSON in the local
+          <span class="mono">JobSearchCompanies/</span> folder. The scheduler runs at
+          12:00 AM and 12:00 PM local app time.
+        </p>
+        {% if error %}<div class="error">{{ error }}</div>{% endif %}
+        {% if message %}<div class="message">{{ message }}</div>{% endif %}
+      </section>
+
+      <section class="panel">
+        <h2>Add Or Update Company</h2>
+        <form action="/admin/companies" method="post">
+          <label>
+            Careers page URL
+            <input type="url" name="careers_page_url" placeholder="https://www.rippling.com/careers/open-roles" required />
+          </label>
+          <label>
+            Extraction instructions
+            <textarea
+              name="extraction_instructions"
+              placeholder="Describe exactly how job roles should be identified from the scraped careers content."
+              required
+            ></textarea>
+          </label>
+          <button type="submit">Save Company</button>
+        </form>
+      </section>
+
+      <section class="panel">
+        <h2>Registered Companies</h2>
+        {% if companies %}
+        <div class="company-list">
+          {% for company in companies %}
+          <article class="company-card">
+            <h3>{{ company.company_name }}</h3>
+            <p><strong>Careers page:</strong> <a href="{{ company.careers_page_url }}" target="_blank" rel="noopener noreferrer">{{ company.careers_page_url }}</a></p>
+            <p><strong>Instructions:</strong> {{ company.extraction_instructions }}</p>
+            <p><strong>Last scraped:</strong> {{ company.last_scraped_at or 'Not yet run' }}</p>
+            <p><strong>Last extracted:</strong> {{ company.last_extracted_at or 'Not yet run' }}</p>
+          </article>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p>No companies registered yet.</p>
+        {% endif %}
+      </section>
+    </main>
+  </body>
+</html>

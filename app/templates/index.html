@@ -120,6 +120,16 @@
         font-size: 0.9rem;
       }
 
+      .role-link {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      .role-link:hover,
+      .role-link:focus-visible {
+        text-decoration: underline;
+      }
+
       @media (max-width: 700px) {
         .shell {
           width: min(100% - 20px, 1080px);
@@ -133,10 +143,11 @@
       <section class="hero">
         <h1>AI Job Search Agent</h1>
         <p>
-          Upload a resume and cover letter, add one company website per line, and
-          the backend will scrape career pages, save raw text locally, and return
-          job IDs that best match the resume.
+          Upload a resume and cover letter. Company websites are optional now:
+          if you leave them blank, the app searches across all companies
+          registered from the admin page.
         </p>
+        <p><strong>Registered admin companies:</strong> {{ registered_company_count }}</p>
 
         {% if error %}
         <div class="error">{{ error }}</div>
@@ -148,9 +159,8 @@
             <textarea
               name="company_websites"
               rows="7"
-              placeholder="https://company-one.com&#10;https://company-two.com"
-              required
-            ></textarea>
+              placeholder="Optional. Leave blank to search all registered companies.&#10;https://company-one.com&#10;https://company-two.com"
+            >{{ company_websites or '' }}</textarea>
           </label>
 
           <label>
@@ -190,12 +200,13 @@
           <article class="job-card">
             <div class="job-meta">
               <span class="pill">Job ID: {{ match.job_id }}</span>
-              <span class="pill">{{ match.title }}</span>
+              <span class="pill">
+                <a class="role-link" href="{{ match.source_url }}" target="_blank" rel="noopener noreferrer">
+                  Role: {{ match.title }}
+                </a>
+              </span>
               <span class="pill">Location: {{ match.location }}</span>
             </div>
-            <p><strong>Company:</strong> {{ match.company_url }}</p>
-            <p><strong>Source:</strong> <a href="{{ match.source_url }}" target="_blank">{{ match.source_url }}</a></p>
-            <p>{{ match.reason }}</p>
           </article>
           {% endfor %}
         </div>

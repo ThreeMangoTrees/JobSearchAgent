@@ -15,3 +15,20 @@ class JobMatch(BaseModel):
 class MatchResult(BaseModel):
     matches: list[JobMatch] = Field(default_factory=list)
     notes: str = Field(..., description="Important caveats about the matching result.")
+
+
+class CompanyConfig(BaseModel):
+    company_slug: str = Field(..., description="Filesystem-safe company identifier.")
+    company_name: str = Field(..., description="Display name for the company.")
+    careers_page_url: str = Field(..., description="Company careers page URL.")
+    extraction_instructions: str = Field(..., description="Admin-provided extraction instructions.")
+    created_at: str = Field(..., description="ISO timestamp when the config was created.")
+    updated_at: str = Field(..., description="ISO timestamp when the config was updated.")
+    last_scraped_at: str = Field(default="", description="ISO timestamp for the latest scrape.")
+    last_extracted_at: str = Field(default="", description="ISO timestamp for the latest job extraction.")
+
+
+class ExtractedJob(BaseModel):
+    job_id: str = Field(..., description="Unique job identifier.")
+    location: str = Field(..., description="Job location.")
+    role_name: str = Field(..., description="Job role name.")

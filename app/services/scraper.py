@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import re
 from collections import deque
@@ -57,6 +58,11 @@ class CareerSiteScraper:
     def scrape_company(self, company_url: str) -> list[ScrapedPage]:
         normalized_url = self._normalize_url(company_url)
         logger.info("Normalized company URL %s -> %s", company_url, normalized_url)
+        if self._is_rippling_careers_url(normalized_url):
+            logger.info("Using Rippling-specific scraper for %s", normalized_url)
+            rippling_page = self._scrape_rippling_open_roles(normalized_url)
+            return [rippling_page] if rippling_page else []
+
         discovered = self._discover_career_urls(normalized_url)
         logger.info("Discovered %s candidate career page(s) for %s", len(discovered), normalized_url)
         pages: list[ScrapedPage] = []
@@ -180,6 +186,115 @@ class CareerSiteScraper:
         if not stripped.startswith(("http://", "https://")):
             stripped = f"https://{stripped}"
         return stripped.rstrip("/")
+
+    def _is_rippling_careers_url(self, url: str) -> bool:
+        parsed = urlparse(url)
+        return parsed.netloc.endswith("rippling.com") and "/careers" in parsed.path.lower()
+
+    def _scrape_rippling_open_roles(self, company_url: str) -> ScrapedPage | None:
+        open_roles_url = f"{self._normalize_url(company_url).split('/careers', 1)[0]}/careers/open-roles"
+        response = self._get(open_roles_url)
+        if not response:
+            logger.info("Rippling-specific scrape failed because fetch failed for %s", open_roles_url)
+            return None
+
+        payload = self._extract_rippling_next_data(response.text)
+        if not payload:
+            logger.info("Rippling-specific scrape failed because __NEXT_DATA__ was not found")
+            return None
+
+        jobs_payload = payload.get("props", {}).get("pageProps", {}).get("jobs", {})
+        jobs = jobs_payload.get("items", [])
+        filtered_jobs = self._filter_rippling_jobs(jobs)
+        logger.info(
+            "Filtered Rippling jobs down to %s Engineering role location entries from %s raw entries",
+            len(filtered_jobs),
+            len(jobs),
+        )
+        text = self._build_rippling_jobs_text_dump(filtered_jobs)
+        return ScrapedPage(
+            url=open_roles_url,
+            title="Rippling Open Roles - Engineering in US Cities",
+            text=text,
+        )
+
+    def _extract_rippling_next_data(self, html: str) -> dict | None:
+        match = re.search(
+            r'<script id="__NEXT_DATA__" type="application/json">\s*(.*?)\s*</script>',
+            html,
+            flags=re.DOTALL,
+        )
+        if not match:
+            return None
+
+        try:
+            return json.loads(match.group(1))
+        except json.JSONDecodeError as exc:
+            logger.warning("Failed to decode Rippling __NEXT_DATA__: %s", exc)
+            return None
+
+    def _filter_rippling_jobs(self, jobs: list[dict]) -> list[dict]:
+        filtered_jobs: list[dict] = []
+
+        for job in jobs:
+            department_name = job.get("department", {}).get("name", "").strip().lower()
+            if department_name != "engineering":
+                continue
+
+            for location in job.get("locations", []):
+                if location.get("countryCode") != "US":
+                    continue
+                city = (location.get("city") or "").strip()
+                if not city:
+                    continue
+
+                filtered_jobs.append(
+                    {
+                        "id": job.get("id", ""),
+                        "title": job.get("name", "").strip(),
+                        "url": job.get("url", "").strip(),
+                        "department": job.get("department", {}).get("name", "").strip(),
+                        "location_name": (location.get("name") or "").strip(),
+                        "city": city,
+                        "state": (location.get("state") or location.get("stateCode") or "").strip(),
+                        "workplace_type": (location.get("workplaceType") or "").strip(),
+                    }
+                )
+
+        filtered_jobs.sort(key=lambda item: (item["title"].lower(), item["city"].lower(), item["state"].lower()))
+        return filtered_jobs
+
+    def _build_rippling_jobs_text_dump(self, jobs: list[dict]) -> str:
+        lines = [
+            "Rippling open roles",
+            "Applied filters:",
+            "- Department: Engineering",
+            "- Locations: United States entries with a city value only",
+            f"Matching role-location entries: {len(jobs)}",
+            "",
+        ]
+
+        if not jobs:
+            lines.append("No Rippling jobs matched the requested filters.")
+            return "\n".join(lines)
+
+        for index, job in enumerate(jobs, start=1):
+            lines.extend(
+                [
+                    f"Role {index}",
+                    f"Job ID: {job['id']}",
+                    f"Title: {job['title']}",
+                    f"Department: {job['department']}",
+                    f"Location: {job['location_name']}",
+                    f"City: {job['city']}",
+                    f"State: {job['state']}",
+                    f"Workplace Type: {job['workplace_type']}",
+                    f"Source URL: {job['url']}",
+                    "",
+                ]
+            )
+
+        return "\n".join(lines)
 
     def _get(self, url: str) -> requests.Response | None:
         try:
