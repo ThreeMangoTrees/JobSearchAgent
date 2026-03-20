@@ -38,6 +38,10 @@ uvicorn app.main:app --reload
 
 Open `http://127.0.0.1:8000`.
 
+## Documentation
+
+- See `architecture.md` for the current system architecture and data flow overview.
+
 ## Database Schema
 
 Set `DATABASE_URL` in `.env` once your Cloud SQL instance is ready.
