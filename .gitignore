@@ -6,3 +6,4 @@ job_sites_data/
 JobSearchCompanies/
 tasks_done_by_ai.txt
 reset_venv_and_start.py
+cloud-sql-proxy

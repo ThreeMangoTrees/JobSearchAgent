@@ -38,6 +38,22 @@ uvicorn app.main:app --reload
 
 Open `http://127.0.0.1:8000`.
 
+## Database Schema
+
+Set `DATABASE_URL` in `.env` once your Cloud SQL instance is ready.
+
+For a local Cloud SQL Auth Proxy connection to MySQL, use:
+
+```env
+DATABASE_URL=mysql+pymysql://DB_USER:DB_PASSWORD@127.0.0.1:3306/DB_NAME
+```
+
+Create the table schema with:
+
+```bash
+python -m app.Model.database
+```
+
 ## Notes
 
 - Scraping is heuristic. Some career sites render jobs with JavaScript or external ATS platforms, so you may need to extend the scraper for specific companies.

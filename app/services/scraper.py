@@ -10,6 +10,8 @@ from urllib.parse import urljoin, urlparse
 import requests
 from bs4 import BeautifulSoup
 
+from app.models import ExtractedJob
+
 logger = logging.getLogger(__name__)
 
 CAREER_KEYWORDS = (
@@ -32,6 +34,60 @@ COMMON_CAREER_PATHS = (
     "/join-us",
     "/company/careers",
 )
+
+US_STATE_CODES = {
+    "AL",
+    "AK",
+    "AZ",
+    "AR",
+    "CA",
+    "CO",
+    "CT",
+    "DE",
+    "FL",
+    "GA",
+    "HI",
+    "ID",
+    "IL",
+    "IN",
+    "IA",
+    "KS",
+    "KY",
+    "LA",
+    "ME",
+    "MD",
+    "MA",
+    "MI",
+    "MN",
+    "MS",
+    "MO",
+    "MT",
+    "NE",
+    "NV",
+    "NH",
+    "NJ",
+    "NM",
+    "NY",
+    "NC",
+    "ND",
+    "OH",
+    "OK",
+    "OR",
+    "PA",
+    "RI",
+    "SC",
+    "SD",
+    "TN",
+    "TX",
+    "UT",
+    "VT",
+    "VA",
+    "WA",
+    "WV",
+    "WI",
+    "WY",
+    "DC",
+}
 
 
 @dataclass
@@ -58,6 +114,12 @@ class CareerSiteScraper:
     def scrape_company(self, company_url: str) -> list[ScrapedPage]:
         normalized_url = self._normalize_url(company_url)
         logger.info("Normalized company URL %s -> %s", company_url, normalized_url)
+        if self._is_robinhood_careers_url(normalized_url):
+            logger.info("Using Robinhood-specific scraper for %s", normalized_url)
+            robinhood_page = self._scrape_robinhood_open_roles(normalized_url)
+            if robinhood_page:
+                return [robinhood_page]
+            logger.info("Falling back to generic scraper for %s after Robinhood-specific scrape returned no jobs", normalized_url)
         if self._is_rippling_careers_url(normalized_url):
             logger.info("Using Rippling-specific scraper for %s", normalized_url)
             rippling_page = self._scrape_rippling_open_roles(normalized_url)
@@ -91,6 +153,12 @@ class CareerSiteScraper:
                 ]
             )
         return "\n".join(blocks)
+
+    def extract_company_jobs(self, company_url: str, scraped_text: str) -> list[ExtractedJob] | None:
+        normalized_url = self._normalize_url(company_url)
+        if self._is_robinhood_careers_url(normalized_url):
+            return self._extract_robinhood_jobs_from_text_dump(scraped_text)
+        return None
 
     def _discover_career_urls(self, company_url: str) -> list[str]:
         queue: deque[str] = deque()
@@ -190,6 +258,163 @@ class CareerSiteScraper:
     def _is_rippling_careers_url(self, url: str) -> bool:
         parsed = urlparse(url)
         return parsed.netloc.endswith("rippling.com") and "/careers" in parsed.path.lower()
+
+    def _is_robinhood_careers_url(self, url: str) -> bool:
+        parsed = urlparse(url)
+        return parsed.netloc.endswith("robinhood.com") and "careers" in parsed.netloc
+
+    def _scrape_robinhood_open_roles(self, company_url: str) -> ScrapedPage | None:
+        jobs = self._fetch_robinhood_jobs()
+        if not jobs:
+            logger.info("Robinhood-specific scrape found no matching jobs")
+            return None
+
+        text = self._build_robinhood_jobs_text_dump(jobs)
+        return ScrapedPage(
+            url="https://boards-api.greenhouse.io/v1/boards/robinhood/jobs?content=true",
+            title="Robinhood Open Roles - Engineering in US Locations",
+            text=text,
+        )
+
+    def _fetch_robinhood_jobs(self) -> list[dict]:
+        response_payload = self._get_json("https://boards-api.greenhouse.io/v1/boards/robinhood/jobs?content=true")
+        if not response_payload:
+            return []
+
+        jobs = response_payload.get("jobs", [])
+        filtered_jobs = self._filter_robinhood_jobs(jobs)
+        logger.info(
+            "Filtered Robinhood jobs down to %s US engineering role-location entries from %s raw entries",
+            len(filtered_jobs),
+            len(jobs),
+        )
+        return filtered_jobs
+
+    def _filter_robinhood_jobs(self, jobs: list[dict]) -> list[dict]:
+        filtered_jobs: list[dict] = []
+
+        for job in jobs:
+            department_names = [
+                str(department.get("name", "")).strip()
+                for department in job.get("departments", [])
+                if str(department.get("name", "")).strip()
+            ]
+            if not any("engineering" in department.lower() for department in department_names):
+                continue
+
+            locations = self._extract_robinhood_us_locations(job)
+            if not locations:
+                continue
+
+            title = str(job.get("title", "")).strip()
+            absolute_url = str(job.get("absolute_url", "")).strip()
+            job_id = str(job.get("id", "")).strip()
+            department = ", ".join(department_names)
+
+            for location in locations:
+                filtered_jobs.append(
+                    {
+                        "id": job_id,
+                        "title": title,
+                        "department": department,
+                        "location_name": location,
+                        "url": absolute_url,
+                    }
+                )
+
+        filtered_jobs.sort(key=lambda item: (item["title"].lower(), item["location_name"].lower(), item["id"]))
+        return filtered_jobs
+
+    def _extract_robinhood_us_locations(self, job: dict) -> list[str]:
+        raw_locations: list[str] = []
+
+        primary_location = str(job.get("location", {}).get("name", "")).strip()
+        if primary_location:
+            raw_locations.extend(part.strip() for part in primary_location.split(";") if part.strip())
+
+        for office in job.get("offices", []):
+            location_name = str(office.get("location", "") or office.get("name", "")).strip()
+            if location_name:
+                raw_locations.extend(part.strip() for part in location_name.split(";") if part.strip())
+
+        normalized_locations: list[str] = []
+        seen: set[str] = set()
+        for location in raw_locations:
+            cleaned = re.sub(r"\s+", " ", location).strip(" ,")
+            if not cleaned or not self._is_us_location(cleaned):
+                continue
+            if cleaned in seen:
+                continue
+            seen.add(cleaned)
+            normalized_locations.append(cleaned)
+
+        return normalized_locations
+
+    def _is_us_location(self, location: str) -> bool:
+        normalized = location.strip()
+        lowered = normalized.lower()
+        if lowered in {"remote", "remote - us", "us remote", "united states", "united states remote"}:
+            return True
+        if "united states" in lowered or lowered.endswith(", usa") or lowered.endswith(", us"):
+            return True
+
+        match = re.search(r",\s*([A-Z]{2})(?:\b|$)", normalized)
+        if match and match.group(1) in US_STATE_CODES:
+            return True
+
+        return False
+
+    def _build_robinhood_jobs_text_dump(self, jobs: list[dict]) -> str:
+        lines = [
+            "Robinhood open roles",
+            "Source: Greenhouse Job Board API",
+            "Applied filters:",
+            "- Departments: any department containing 'Engineering'",
+            "- Locations: United States / US office locations",
+            f"Matching role-location entries: {len(jobs)}",
+            "",
+        ]
+
+        if not jobs:
+            lines.append("No Robinhood jobs matched the requested filters.")
+            return "\n".join(lines)
+
+        for index, job in enumerate(jobs, start=1):
+            lines.extend(
+                [
+                    f"Role {index}",
+                    f"Job ID: {job['id']}",
+                    f"Title: {job['title']}",
+                    f"Department: {job['department']}",
+                    f"Location: {job['location_name']}",
+                    f"Source URL: {job['url']}",
+                    "",
+                ]
+            )
+
+        return "\n".join(lines)
+
+    def _extract_robinhood_jobs_from_text_dump(self, scraped_text: str) -> list[ExtractedJob] | None:
+        if "Robinhood open roles" not in scraped_text or "Source: Greenhouse Job Board API" not in scraped_text:
+            return None
+
+        pattern = re.compile(
+            r"Job ID:\s*(?P<job_id>.+?)\n"
+            r"Title:\s*(?P<title>.+?)\n"
+            r"Department:\s*(?P<department>.+?)\n"
+            r"Location:\s*(?P<location>.+?)\n"
+            r"Source URL:\s*(?P<source_url>.+?)(?:\n|$)"
+        )
+        jobs: list[ExtractedJob] = []
+        for match in pattern.finditer(scraped_text):
+            jobs.append(
+                ExtractedJob(
+                    job_id=match.group("job_id").strip(),
+                    location=match.group("location").strip(),
+                    role_name=match.group("title").strip(),
+                )
+            )
+        return jobs
 
     def _scrape_rippling_open_roles(self, company_url: str) -> ScrapedPage | None:
         open_roles_url = f"{self._normalize_url(company_url).split('/careers', 1)[0]}/careers/open-roles"
@@ -295,6 +520,16 @@ class CareerSiteScraper:
             )
 
         return "\n".join(lines)
+
+    def _get_json(self, url: str) -> dict | None:
+        try:
+            logger.info("Fetching JSON URL %s", url)
+            response = self.session.get(url, timeout=self.timeout)
+            response.raise_for_status()
+            return response.json()
+        except (requests.RequestException, ValueError) as exc:
+            logger.warning("JSON request failed for %s: %s", url, exc)
+            return None
 
     def _get(self, url: str) -> requests.Response | None:
         try:

@@ -6,7 +6,7 @@ from pathlib import Path
 
 from authlib.integrations.starlette_client import OAuth, OAuthError
 from fastapi import FastAPI, File, Form, Request, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
@@ -175,7 +175,7 @@ def admin_login(request: Request) -> HTMLResponse:
 
 
 @app.get("/admin/login/google")
-async def admin_login_google(request: Request) -> RedirectResponse | HTMLResponse:
+async def admin_login_google(request: Request) -> Response:
     google = oauth.create_client("google")
     if google is None:
         return templates.TemplateResponse(
@@ -198,7 +198,7 @@ async def admin_login_google(request: Request) -> RedirectResponse | HTMLRespons
 
 
 @app.get("/admin/auth/google/callback", response_class=HTMLResponse, name="admin_google_callback")
-async def admin_google_callback(request: Request) -> RedirectResponse | HTMLResponse:
+async def admin_google_callback(request: Request) -> Response:
     google = oauth.create_client("google")
     if google is None:
         return templates.TemplateResponse(
@@ -277,7 +277,7 @@ async def admin_logout(request: Request) -> RedirectResponse:
 
 
 @app.get("/admin", response_class=HTMLResponse)
-def admin_dashboard(request: Request) -> HTMLResponse:
+def admin_dashboard(request: Request) -> Response:
     if not _is_admin_authenticated(request):
         return RedirectResponse(url="/admin/login", status_code=303)
     return templates.TemplateResponse(
@@ -296,7 +296,7 @@ async def admin_save_company(
     request: Request,
     careers_page_url: str = Form(...),
     extraction_instructions: str = Form(...),
-) -> HTMLResponse:
+) -> Response:
     if not _is_admin_authenticated(request):
         return RedirectResponse(url="/admin/login", status_code=303)
 

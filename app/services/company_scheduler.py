@@ -98,20 +98,25 @@ class CompanySyncScheduler:
 
         extraction_thread = threading.Thread(
             target=self._extract_jobs,
-            args=(company_data, scraped_text),
+            args=(company_data, scraped_text, scraper),
             name=f"{company_slug}-extractor",
             daemon=True,
         )
         extraction_thread.start()
         extraction_thread.join()
 
-    def _extract_jobs(self, company_data: dict, scraped_text: str) -> None:
-        matcher = OpenAIJobMatcher()
-        jobs = matcher.extract_jobs(
+    def _extract_jobs(self, company_data: dict, scraped_text: str, scraper: CareerSiteScraper) -> None:
+        jobs = scraper.extract_company_jobs(
             company_url=company_data["careers_page_url"],
             scraped_text=scraped_text,
-            extraction_instructions=company_data["extraction_instructions"],
         )
+        if jobs is None:
+            matcher = OpenAIJobMatcher()
+            jobs = matcher.extract_jobs(
+                company_url=company_data["careers_page_url"],
+                scraped_text=scraped_text,
+                extraction_instructions=company_data["extraction_instructions"],
+            )
         write_company_jobs(
             company_slug=company_data["company_slug"],
             company_name=company_data["company_name"],

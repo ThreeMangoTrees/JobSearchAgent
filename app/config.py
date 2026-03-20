@@ -22,6 +22,8 @@ APP_TIMEZONE = os.getenv("APP_TIMEZONE", "America/Los_Angeles")
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
 GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "")
+DATABASE_URL = os.getenv("DATABASE_URL", "")
+DATABASE_ECHO = os.getenv("DATABASE_ECHO", "false").lower() == "true"
 
 SMTP_HOST = os.getenv("SMTP_HOST", "")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
