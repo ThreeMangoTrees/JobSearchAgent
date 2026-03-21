@@ -1,0 +1,67 @@
+2026-03-20 PDT
+- `pwd`: confirmed the repository working directory before reading or editing files.
+- `sed -n '1,260p' app/services/scraper.py`: read the first section of the scraper to document its current architecture.
+- `sed -n '1,220p' AGENTS.md`: verified repository-specific instructions that must be followed for this task.
+- `sed -n '261,520p' app/services/scraper.py`: read the middle section of the scraper covering Robinhood and Rippling logic.
+- `sed -n '1,240p' app/models.py`: checked the `ExtractedJob` model used by the scraper.
+- `sed -n '521,760p' app/services/scraper.py`: read the final helper methods for HTTP and error handling.
+- `sed -n '1,120p' commands_run_by_ai.txt`: checked whether the command audit log already existed before appending.
+- `sed -n '1,120p' tasks_done_by_ai.txt`: reviewed the existing task audit log format before appending a new entry.
+- `sed -n '1,260p' architecture.md`: verified the generated architecture document after creating it.
+2026-03-20 PDT
+- `pwd`: confirmed the current repository root before updating the README.
+- `rg --files -g 'README*' -g 'architecture.md' -g 'tasks_done_by_ai.txt' -g 'commands_run_by_ai.txt' -g 'AGENTS.md'`: located the README, architecture document, and required audit log files.
+- `sed -n '1,220p' README.md`: read the current README structure before adding the architecture reference.
+- `sed -n '1,120p' commands_run_by_ai.txt`: checked the existing command audit format before appending this turn's entries.
+- `sed -n '1,120p' tasks_done_by_ai.txt`: checked the existing task audit format before appending this turn's summary.
+- `sed -n '1,120p' README.md`: verified the updated README section after patching.
+- `tail -n 8 commands_run_by_ai.txt`: verified the latest command audit entries were appended.
+- `tail -n 4 tasks_done_by_ai.txt`: verified the latest task summary entry was appended.
+2026-03-20 PDT
+- `git status --short`: inspected the working tree before preparing a commit for the requested push.
+- `git branch --show-current`: confirmed the active branch was `main`.
+- `git remote -v`: verified the configured GitHub remote before pushing.
+- `git diff -- README.md architecture.md AGENTS.md`: reviewed the documentation-related changes and the existing AGENTS.md edit before staging.
+- `sed -n '1,120p' AGENTS.md`: read the current repository instruction file while evaluating whether its change should be included in the commit.
+- `git add README.md architecture.md AGENTS.md`: staged the documentation updates and architecture file for commit.
+- `git commit -m "Add architecture documentation references"`: attempted to create the requested commit for pushing the changes.
+- `ls -l .git/index.lock`: checked whether the failed commit left a stale git index lock behind.
+- `ps -ax -o pid=,command= | rg 'git'`: attempted to check for an active git process after the lock error; sandbox permissions blocked `ps`.
+- `git commit -m "Add architecture documentation references"`: retried the commit after the transient lock issue cleared.
+- `git status --short`: checked staged state while waiting for the commit result.
+- `git push origin main`: pushed commit `b9f1371` to `origin/main`.
+2026-03-20 PDT
+- `rg --files`: listed repository files to scope the security review.
+- `sed -n '1,200p' AGENTS.md`: re-read repository-specific instructions before starting the review.
+- `sed -n '1,240p' app/main.py`: inspected the primary FastAPI routes and session setup.
+- `sed -n '1,240p' app/config.py`: reviewed environment defaults and secret handling.
+- `sed -n '1,320p' app/services/admin_auth.py`: checked admin authentication and OTP-related logic.
+- `sed -n '241,520p' app/main.py`: reviewed the remaining request handlers and upload processing path.
+- `sed -n '1,260p' app/services/openai_matcher.py`: inspected OpenAI request handling and document parsing.
+- `sed -n '1,260p' app/services/storage.py`: reviewed filesystem write paths for scraped content.
+- `sed -n '1,320p' app/services/scraper.py`: inspected URL normalization and scraping logic.
+- `sed -n '321,680p' app/services/scraper.py`: reviewed the rest of scraper helpers and network fetch code.
+- `sed -n '1,260p' app/services/company_registry.py`: inspected how admin-provided company configs are stored and loaded.
+- `sed -n '1,260p' app/services/company_scheduler.py`: reviewed scheduled scraping and extraction behavior.
+- `sed -n '1,260p' app/models.py`: checked request/response and persisted data models.
+- `sed -n '1,240p' app/templates/admin_dashboard.html`: reviewed admin forms and rendered company data for browser-facing issues.
+- `sed -n '1,220p' app/templates/admin_login.html`: reviewed the login page for auth-related disclosures.
+- `sed -n '1,260p' app/templates/index.html`: reviewed the public upload and analysis form.
+- `sed -n '1,240p' app/Model/database.py`: inspected database initialization for security-relevant defaults.
+- `sed -n '1,240p' app/templates/admin_verify.html`: reviewed the OTP verification template referenced in the repo.
+- `nl -ba app/main.py | sed -n '1,260p'`: captured line-numbered references for the first half of `app/main.py`.
+- `nl -ba app/main.py | sed -n '261,520p'`: captured line-numbered references for the second half of `app/main.py`.
+- `nl -ba app/config.py | sed -n '1,200p'`: captured line-numbered references for configuration defaults.
+- `nl -ba app/templates/admin_dashboard.html | sed -n '1,220p'`: captured line-numbered references for admin dashboard forms.
+- `nl -ba app/templates/admin_login.html | sed -n '1,220p'`: captured line-numbered references for admin login disclosures.
+- `nl -ba app/templates/index.html | sed -n '1,260p'`: captured line-numbered references for the public analysis form.
+- `nl -ba app/services/scraper.py | sed -n '1,380p'`: captured line-numbered references for scraper URL handling.
+- `nl -ba app/services/scraper.py | sed -n '381,520p'`: captured line-numbered references for scraper parsing helpers.
+- `nl -ba app/services/openai_matcher.py | sed -n '1,260p'`: captured line-numbered references for OpenAI calls and upload parsing.
+- `nl -ba app/services/company_registry.py | sed -n '1,240p'`: captured line-numbered references for persisted company configuration handling.
+- `nl -ba app/services/company_scheduler.py | sed -n '1,240p'`: captured line-numbered references for scheduled scraping.
+- `nl -ba app/services/scraper.py | sed -n '520,620p'`: captured the exact network request lines used by the scraper.
+- `git status --short`: checked the working tree after the review before updating the local audit files.
+2026-03-20 PDT
+- `rg --files -g 'security_review.md' -g 'commands_run_by_ai.txt' -g 'tasks_done_by_ai.txt'`: checked whether the security review document and required audit files already existed before creating the report.
+- `date '+%Y-%m-%d %H:%M:%S %Z'`: captured the current local timestamp for the new review document entry.
